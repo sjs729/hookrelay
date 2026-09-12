@@ -1,0 +1,75 @@
+[project]
+name = "hookrelay"
+version = "0.1.0"
+description = "Webhook 中继与可靠投递服务：接收即返回，可靠、幂等、可观测地异步投递事件"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "shenjiashuo" }]
+dependencies = [
+    "alembic>=1.20.0",
+    "asyncpg>=0.31.0",
+    "cryptography>=50.0.1",
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "prometheus-client>=0.26.0",
+    "pwdlib[argon2]>=0.3.1",
+    "pydantic-settings>=2.15.0",
+    "sqlalchemy[asyncio]>=2.0.52",
+    "uvicorn[standard]>=0.52.4",
+]
+
+[tool.uv]
+# 这是一个应用而不是可发布的库，不需要构建后端
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle 错误
+    "F",    # pyflakes
+    "I",    # isort 导入排序
+    "N",    # pep8-naming 命名规范
+    "UP",   # pyupgrade 语法升级
+    "B",    # flake8-bugbear 常见陷阱
+    "ASYNC",# flake8-async 异步误用
+    "C4",   # 推导式优化
+    "SIM",  # 代码简化
+    "RUF",  # ruff 专属规则
+    "S",    # bandit 安全检查
+]
+ignore = [
+    # 本项目注释与文档字符串使用中文，全角标点是正常写法
+    # 这三条规则本意是防希腊字母等冒充 ASCII 字符，在中文语境下属于误报
+    "RUF001",  # 全角标点（字符串）
+    "RUF002",  # 全角标点（文档字符串）
+    "RUF003",  # 全角标点（注释）
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 测试文件允许使用 assert 与硬编码测试数据
+"tests/*" = ["S101", "S105", "S106"]
+# 脚本与迁移文件放宽安全规则
+"scripts/*" = ["S101", "T201"]
+"alembic/*" = ["S105", "S106"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/main.py"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.7",
+]

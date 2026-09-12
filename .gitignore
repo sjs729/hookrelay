@@ -1,0 +1,51 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ===== 虚拟环境 =====
+.venv/
+venv/
+env/
+ENV/
+
+# ===== 环境变量与密钥（绝不提交）=====
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+
+# ===== 测试与覆盖率 =====
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+
+# ===== 日志 =====
+*.log
+logs/
+
+# ===== 编辑器与系统 =====
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# ===== 本地数据 =====
+*.sqlite3
+*.db
+pgdata/
