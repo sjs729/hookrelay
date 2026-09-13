@@ -1,0 +1,120 @@
+name: CI
+
+# 主分支的每次推送、以及所有面向主分支的 PR 都要跑一遍。
+# workflow_dispatch 是留个手动触发的入口，排查问题时不用专门推一个空提交。
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# 同一个分支上如果连续推送，前面的运行已经没有意义了，直接取消。
+# 免费额度有限，这种行为能省下不少。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------
+  # 代码检查
+  # ---------------------------------------------------------------
+  lint:
+    name: 代码检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # --frozen 表示严格按 uv.lock 安装。
+      # 如果 pyproject.toml 改了却忘了更新锁文件，这里会直接失败，
+      # 而不是悄悄装一个和本地不同的版本组合。
+      - name: 安装依赖
+        run: uv sync --frozen
+
+      - name: ruff 静态检查
+        run: uv run ruff check .
+
+      # 格式化单独检查一次，否则「本地没格式化、CI 才发现」这类
+      # 纯风格问题会一直漏过去
+      - name: ruff 格式检查
+        run: uv run ruff format --check .
+
+  # ---------------------------------------------------------------
+  # 测试
+  # ---------------------------------------------------------------
+  test:
+    name: 测试
+    runs-on: ubuntu-latest
+
+    # 用真实的 PostgreSQL 而不是 SQLite 替代。
+    # 这个项目依赖 JSONB、部分索引、FOR UPDATE SKIP LOCKED——
+    # 这些 SQLite 一个都不支持。换成 SQLite 意味着测的是一个不存在的系统。
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: hookrelay
+          POSTGRES_PASSWORD: hookrelay
+          POSTGRES_DB: hookrelay_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hookrelay"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # 注意变量名是 HOOKRELAY_TEST_DATABASE_URL：
+      # tests/conftest.py 读的是它，而不是通用的 DATABASE_URL。
+      # 这样测试脚本可以独立于应用配置指定库，避免误连开发库。
+      HOOKRELAY_TEST_DATABASE_URL: postgresql+asyncpg://hookrelay:hookrelay@localhost:5432/hookrelay_test
+      # alembic 迁移读的是 DATABASE_URL，指向同一个库
+      DATABASE_URL: postgresql+asyncpg://hookrelay:hookrelay@localhost:5432/hookrelay_test
+      SECRET_KEY: ci-only-secret-not-used-in-production
+      ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: 安装依赖
+        run: uv sync --frozen
+
+      - name: 校验数据库迁移可用
+        run: uv run alembic upgrade head
+
+      - name: 运行测试
+        run: uv run pytest tests/ -q --cov=app --cov-report=term-missing
+
+  # ---------------------------------------------------------------
+  # 镜像可构建
+  # ---------------------------------------------------------------
+  docker:
+    name: 镜像构建
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # buildx 才能用上 GitHub Actions 的缓存后端。
+      # Dockerfile 里最耗时的是一层依赖安装，缓存命中后构建只要几十秒。
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 构建镜像
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          # 只验证能不能构建，不推送任何地方
+          push: false
+          load: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

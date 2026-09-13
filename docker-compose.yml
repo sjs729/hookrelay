@@ -1,0 +1,58 @@
+# 本地开发用的编排文件，与线上部署无关（Render 只读取 Dockerfile）。
+#
+# 用途是把「Web + Worker + PostgreSQL」整套在本地跑起来，
+# 验证镜像本身没问题、迁移能在容器里执行、健康检查能通过。
+#
+#   docker compose up --build
+#
+# 然后访问 http://127.0.0.1:8000/docs
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hookrelay
+      POSTGRES_PASSWORD: hookrelay
+      POSTGRES_DB: hookrelay_dev
+    # 映射到 5433 而不是 5432：本机已经用 Homebrew 装了 PostgreSQL 16，
+    # 端口冲突会导致 compose 起不来，而报错信息不一定指向真正的原因
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # 用 pg_isready 而不是尝试连接一次：它专门用于探测"数据库是否可接受连接"，
+      # 不会因为认证配置或库还没建好而误判
+      test: ["CMD-SHELL", "pg_isready -U hookrelay -d hookrelay_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ENV: prod
+      # 主机名用服务名 db，由 compose 的内置 DNS 解析。
+      # 这里不能用 localhost——容器里的 localhost 指的是容器自己。
+      DATABASE_URL: postgresql+asyncpg://hookrelay:hookrelay@db:5432/hookrelay_dev
+      # 仅供本地验证，不是真实密钥。生产环境的 SECRET_KEY 必须在部署平台单独配置，
+      # 且必须保存好：它用于派生加密密钥，丢失后已加密的下游签名密钥无法恢复。
+      SECRET_KEY: compose-local-only-not-a-real-secret
+      LOG_JSON: "true"
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"   # Web 服务与 /docs
+      - "9101:9101"   # Worker 的 Prometheus 指标
+    depends_on:
+      db:
+        # 等到数据库真正健康再启动应用。
+        # 只写 service_started 的话，容器虽已创建但还没准备好接受连接，
+        # start.sh 里的 alembic upgrade 会直接失败
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

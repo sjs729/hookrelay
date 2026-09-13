@@ -1,0 +1,46 @@
+# 构建上下文里不需要的东西。这个文件直接影响镜像大小和构建速度，
+# 更重要的是防止本地密钥被复制进镜像层——镜像层删不掉，只能重建。
+
+# ===== 版本控制与 CI =====
+.git
+.gitignore
+.github
+
+# ===== 依赖与虚拟环境（运行阶段用构建阶段装好的那份）=====
+.venv
+venv
+
+# ===== 密钥（绝不能进镜像）=====
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ===== Python 缓存 =====
+__pycache__
+*.py[cod]
+*.so
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+.coverage.*
+htmlcov
+coverage.xml
+
+# ===== 日志与本地数据 =====
+*.log
+logs
+pgdata
+*.sqlite3
+*.db
+
+# ===== 编辑器与系统 =====
+.vscode
+.idea
+.DS_Store
+
+# ===== 与运行无关的文档 =====
+PROJECT_CHECKLIST.md
+docs/images
