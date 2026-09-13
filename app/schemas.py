@@ -217,3 +217,21 @@ class EventReplayResponse(BaseModel):
     status: str
     scheduled_at: datetime = Field(description="重新入队的时间，Worker 下一轮就会取走")
     message: str
+
+
+class StatsResponse(BaseModel):
+    """账号维度的投递统计。"""
+
+    endpoints: int = Field(description="接收地址数量")
+    total_events: int = Field(description="累计接收的事件数")
+    pending: int = Field(description="等待投递")
+    delivering: int = Field(description="正在投递")
+    succeeded: int = Field(description="投递成功")
+    dead: int = Field(description="已放弃（死信）")
+    success_rate: float = Field(
+        description="成功率 = 成功 / （成功 + 死信）。进行中的事件不计入分母"
+    )
+    total_attempts: int = Field(description="累计投递尝试次数，含重试")
+    avg_delivery_latency_ms: float | None = Field(
+        default=None, description="平均投递耗时（毫秒），只统计真正发出请求的尝试"
+    )

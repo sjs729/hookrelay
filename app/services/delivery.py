@@ -54,7 +54,7 @@ class FailureKind(StrEnum):
     """5xx。下游自己出错了，通常重试就能成功。"""
 
     UNEXPECTED = "unexpected"
-    """3xx 等意料之外的响应。"""
+    """未归类的异常情况。保留作为兜底，正常路径不会产生。"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,9 +189,12 @@ async def deliver_once(
         )
 
     if 300 <= response.status_code < 400:
+        # 归为不可重试：重定向说明 target_url 配错了，重试一百次还是会重定向。
+        # 让它直接进死信并在查询接口显示这条明确的错误，用户改完配置重放即可。
+        # 反过来如果当成可重试，这条事件会白白跑完整个重试预算才停下。
         return DeliveryResult(
             ok=False,
-            kind=FailureKind.UNEXPECTED,
+            kind=FailureKind.CLIENT_ERROR,
             status_code=response.status_code,
             duration_ms=duration_ms,
             response_body=body_snippet,

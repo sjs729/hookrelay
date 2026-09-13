@@ -17,13 +17,14 @@
 三者的共同点：数据库里存的都不是明文。即使数据库被拖走，
 攻击者也无法直接拿去调用接口。
 
-安全原则提醒：本模块的函数不做任何日志输出。
+安全原则提醒：本模块的函数不向日志输出任何凭据内容。
 密钥类数据一旦进了日志文件，就等于泄露了。
 """
 
 import base64
 import hashlib
 import hmac
+import logging
 import secrets
 import time
 
@@ -31,9 +32,11 @@ from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from pwdlib import PasswordHash
+from pwdlib.exceptions import UnknownHashError
 
 from app.config import get_settings
 
+logger = logging.getLogger("hookrelay.security")
 settings = get_settings()
 
 # argon2 的具体参数由 pwdlib 的 recommended() 决定，
@@ -61,8 +64,16 @@ def verify_password(password: str, password_hash: str) -> bool:
 
     pwdlib 内部用恒定时间比较，不会因为"前几个字符匹配"而提前返回，
     因此攻击者无法通过测量响应耗时逐位猜出密码。
+
+    哈希串无法识别时返回 False，而不是向上抛异常：password_hash 来自数据库，
+    可能因为历史实现或人工修改而损坏。此时调用方应该得到"密码不正确"，
+    而不是一个 500；异常类型本身也会暴露哈希实现细节。
     """
-    return _password_hasher.verify(password, password_hash)
+    try:
+        return _password_hasher.verify(password, password_hash)
+    except UnknownHashError:
+        logger.warning("密码哈希无法识别，判定为校验失败")
+        return False
 
 
 def hash_api_key(api_key: str) -> str:

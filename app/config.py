@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # ---------- 基础 ----------
     env: str = "dev"
     log_level: str = "INFO"
+    # 是否输出 JSON 结构化日志。本地开发用可读文本，
+    # 部署到平台后在环境变量里设为 true，便于日志系统按字段检索
+    log_json: bool = False
     # 仅用于本地开发的占位值，生产环境必须通过环境变量覆盖
     secret_key: str = "dev-insecure-key-please-change"  # noqa: S105
 
@@ -38,6 +41,10 @@ class Settings(BaseSettings):
     worker_batch_size: int = 50
     worker_poll_interval_seconds: float = 1.0
     worker_lock_timeout_seconds: int = 120
+    # Worker 进程自己的指标端口。prometheus_client 的默认 registry 是进程内的，
+    # 投递指标只存在于 Worker 进程，Web 的 /metrics 里看不到，
+    # 所以 Worker 必须另开一个端口供采集器抓取
+    worker_metrics_port: int = 9101
 
     # ---------- 入站接收 ----------
     ingest_rate_limit_per_minute: int = 120

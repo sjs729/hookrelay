@@ -26,7 +26,9 @@ from sqlalchemy.exc import IntegrityError
 
 from app.config import get_settings
 from app.db import SessionDep
+from app.metrics import INGEST_REJECTED_TOTAL, INGEST_TOTAL
 from app.models import Endpoint, Event, EventStatus
+from app.observability import ctx as log_ctx
 from app.schemas import EventAcceptedResponse
 from app.security import (
     IDEMPOTENCY_HEADER,
@@ -57,6 +59,21 @@ TimestampHeader = Annotated[str | None, Header(alias=TIMESTAMP_HEADER)]
 IdempotencyKeyHeader = Annotated[str | None, Header(alias=IDEMPOTENCY_HEADER)]
 
 
+def _reject(
+    reason: str,
+    status_code: int,
+    detail: str,
+    headers: dict[str, str] | None = None,
+) -> HTTPException:
+    """记录拒绝原因并构造异常。
+
+    把埋点和构造异常绑在一个函数里，是为了避免以后新增检查项时漏掉埋点：
+    拒绝分支只能通过这个函数返回，指标自然不会缺项。
+    """
+    INGEST_REJECTED_TOTAL.labels(reason=reason).inc()
+    return HTTPException(status_code=status_code, detail=detail, headers=headers)
+
+
 async def _read_body_within_limit(request: Request, max_bytes: int) -> bytes:
     """流式读取请求体，超过上限立刻中断。
 
@@ -74,7 +91,7 @@ async def _read_body_within_limit(request: Request, max_bytes: int) -> bytes:
         total += len(chunk)
         if total > max_bytes:
             raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                 detail=f"请求体超过上限 {max_bytes} 字节",
             )
         chunks.append(chunk)
@@ -196,48 +213,52 @@ async def ingest_event(
         await session.execute(select(Endpoint).where(Endpoint.token == token))
     ).scalar_one_or_none()
     if endpoint is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="接收地址不存在",
-        )
+        raise _reject("unknown_token", status.HTTP_404_NOT_FOUND, "接收地址不存在")
 
     # ---------- 第 2 道：地址是否启用 ----------
     if not endpoint.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="接收地址已停用",
-        )
+        raise _reject("endpoint_disabled", status.HTTP_403_FORBIDDEN, "接收地址已停用")
 
     # ---------- 第 3 道：频率限制 ----------
     retry_after = _ingest_limiter.check(str(endpoint.id))
     if retry_after is not None:
         # 向上取整：返回 0 会让调用方立刻重试，等于把限流变成重试风暴
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="请求过于频繁，请稍后重试",
+        raise _reject(
+            "rate_limited",
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "请求过于频繁，请稍后重试",
             headers={"Retry-After": str(max(1, int(retry_after + 0.999)))},
         )
 
     # ---------- 第 4 道：读取请求体（带大小上限）----------
-    body = await _read_body_within_limit(request, settings.max_ingest_body_bytes)
+    try:
+        body = await _read_body_within_limit(request, settings.max_ingest_body_bytes)
+    except HTTPException:
+        # 体积超限是在流式读取过程中发现的，那一步拿不到 endpoint，
+        # 所以在这里补记指标，保持拒绝原因统计的完整性
+        INGEST_REJECTED_TOTAL.labels(reason="body_too_large").inc()
+        raise
 
     # ---------- 第 5 道：时间戳时效 ----------
     if not timestamp:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"缺少 {TIMESTAMP_HEADER} 请求头",
+        raise _reject(
+            "missing_timestamp",
+            status.HTTP_401_UNAUTHORIZED,
+            f"缺少 {TIMESTAMP_HEADER} 请求头",
         )
     if not is_timestamp_fresh(timestamp, settings.signature_tolerance_seconds):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="请求时间戳超出允许范围，疑似重放",
+        raise _reject(
+            "stale_timestamp",
+            status.HTTP_401_UNAUTHORIZED,
+            "请求时间戳超出允许范围，疑似重放",
         )
 
     # ---------- 第 6 道：HMAC 签名 ----------
     if not signature:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"缺少 {SIGNATURE_HEADER} 请求头",
+        raise _reject(
+            "missing_signature",
+            status.HTTP_401_UNAUTHORIZED,
+            f"缺少 {SIGNATURE_HEADER} 请求头",
         )
 
     try:
@@ -246,17 +267,15 @@ async def ingest_event(
         # 密钥解不开属于服务端配置问题，不是调用方的错，
         # 因此返回 500 而不是 401，避免调用方误以为是自己签名错了
         logger.exception("接收地址 %s 的签名密钥无法解密", endpoint.id)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="服务端密钥配置异常",
+        raise _reject(
+            "secret_unavailable",
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "服务端密钥配置异常",
         ) from None
 
     if not verify_signature(secret, timestamp, body, signature):
-        logger.warning("签名校验失败 endpoint=%s", endpoint.id)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="签名校验失败",
-        )
+        logger.warning("签名校验失败", extra=log_ctx(endpoint_id=str(endpoint.id)))
+        raise _reject("signature_mismatch", status.HTTP_401_UNAUTHORIZED, "签名校验失败")
 
     # ---------- 通过全部检查，写入事件 ----------
     payload = _parse_payload(request.headers.get("content-type", ""), body)
@@ -299,10 +318,10 @@ async def ingest_event(
         ).scalar_one()
 
         logger.info(
-            "重复事件被去重 endpoint=%s event=%s",
-            endpoint_id,
-            existing.id,
+            "重复事件被去重",
+            extra=log_ctx(endpoint_id=str(endpoint_id), event_id=str(existing.id)),
         )
+        INGEST_TOTAL.labels(result="duplicate").inc()
 
         # 返回 202 而不是 409：对调用方来说，"事件已收到"这个事实没有变，
         # 重复投递是它自己重试导致的，不算错误。用 409 会诱导调用方改代码。
@@ -317,7 +336,11 @@ async def ingest_event(
     await session.refresh(event)
     response.headers["Location"] = f"/api/events/{event.id}"
 
-    logger.info("事件已接收 endpoint=%s event=%s", endpoint_id, event.id)
+    INGEST_TOTAL.labels(result="accepted").inc()
+    logger.info(
+        "事件已接收",
+        extra=log_ctx(endpoint_id=str(endpoint_id), event_id=str(event.id)),
+    )
 
     return EventAcceptedResponse(
         event_id=event.id,

@@ -32,11 +32,20 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import httpx
+from prometheus_client import start_http_server
 from sqlalchemy import func, select, update
 
 from app.config import get_settings
 from app.db import SessionFactory
+from app.metrics import (
+    DELIVERY_DURATION,
+    DELIVERY_TOTAL,
+    STALE_RECLAIMED_TOTAL,
+    WORKER_REGISTRY,
+)
 from app.models import DeliveryAttempt, Endpoint, Event, EventStatus
+from app.observability import ctx as log_ctx
+from app.observability import setup_logging
 from app.security import decrypt_secret
 from app.services.delivery import DeliveryResult, FailureKind, deliver_once
 from app.services.retry import compute_delay
@@ -129,6 +138,20 @@ class DeliveryWorker:
         attempt_number: int,
     ) -> None:
         """投递一条事件并写回结果。"""
+        # 信号量在这里生效：_run_once 一次性把所有协程都启动起来，
+        # 但真正同时在跑的不会超过 worker_concurrency 个，
+        # 超出的协程会停在这一行等待，不会对下游发起连接
+        async with self._semaphore:
+            await self._deliver_one_inner(client, event, endpoint, attempt_number)
+
+    async def _deliver_one_inner(
+        self,
+        client: httpx.AsyncClient,
+        event: Event,
+        endpoint: Endpoint | None,
+        attempt_number: int,
+    ) -> None:
+        """真正执行投递的逻辑，由 _deliver_one 包上并发限制后调用。"""
         if endpoint is None:
             # endpoint 被删了，事件会被外键级联删除。
             # 这里不做任何写回，避免对着一条已经不存在的事件更新。
@@ -241,22 +264,40 @@ class DeliveryWorker:
 
             await session.commit()
 
+        # 三种结局互相排斥，先算清楚再统一记录，避免指标和日志各写一套判断
+        if result.ok:
+            outcome = "succeeded"
+        elif not result.retryable or attempt_number >= endpoint.max_attempts:
+            outcome = "dead"
+        else:
+            outcome = "retrying"
+
+        DELIVERY_TOTAL.labels(result=outcome).inc()
+        # 直方图记录的是"一次投递花多久"，包含失败的那些：
+        # 只看成功请求的耗时会把超时导致的慢请求全部排除掉，延迟分布偏乐观
+        DELIVERY_DURATION.observe(result.duration_ms / 1000)
+
         if result.ok:
             logger.info(
-                "投递成功 | event=%s attempt=%s status=%s 耗时=%sms",
-                event.id,
-                attempt_number,
-                result.status_code,
-                result.duration_ms,
+                "投递成功",
+                extra=log_ctx(
+                    event_id=str(event.id),
+                    attempt=attempt_number,
+                    status_code=result.status_code,
+                    duration_ms=result.duration_ms,
+                ),
             )
         else:
             logger.warning(
-                "投递失败 | event=%s attempt=%s/%s kind=%s 错误=%s",
-                event.id,
-                attempt_number,
-                endpoint.max_attempts,
-                result.kind,
-                result.error,
+                "投递失败",
+                extra=log_ctx(
+                    event_id=str(event.id),
+                    attempt=attempt_number,
+                    max_attempts=endpoint.max_attempts,
+                    kind=str(result.kind),
+                    outcome=outcome,
+                    error=result.error,
+                ),
             )
 
     # ---------- 僵尸任务回收 ----------
@@ -295,7 +336,8 @@ class DeliveryWorker:
             count = result.rowcount
 
         if count:
-            logger.warning("回收了 %s 条租约过期的僵尸任务", count)
+            STALE_RECLAIMED_TOTAL.inc(count)
+            logger.warning("回收了租约过期的僵尸任务", extra=log_ctx(count=count))
         return count
 
     # ---------- 主循环 ----------
@@ -395,10 +437,15 @@ class DeliveryWorker:
 
 async def main() -> None:
     """Worker 进程入口。"""
-    logging.basicConfig(
-        level=settings.log_level.upper(),
-        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    )
+    setup_logging(settings.log_level, json_format=settings.log_json)
+
+    # 单独开一个 HTTP 端口暴露本进程的指标。
+    # prometheus_client 的 registry 是进程内的：Worker 里累加的投递计数，
+    # 在 Web 进程的 registry 里根本不存在。多进程部署时，
+    # 要么让采集器分别抓每个进程的端口（这里采用的方式），
+    # 要么用 Pushgateway 主动上报。
+    # 放在独立线程里，不影响投递主循环。
+    start_http_server(settings.worker_metrics_port, registry=WORKER_REGISTRY)
 
     worker = DeliveryWorker()
 

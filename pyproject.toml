@@ -67,12 +67,29 @@ known-third-party = ["alembic"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# 所有 async fixture 共用同一个事件循环。默认值在 pytest-asyncio 1.x 里
+# 会告警，而且 session 级别的连接池必须在同一个循环里创建和释放
+asyncio_default_fixture_loop_scope = "session"
+# 测试函数也必须用同一个循环。asyncpg 的连接绑定在创建它的循环上，
+# 若 fixture 在 session loop 里建好了连接池、测试却跑在另一个 function loop，
+# 驱动会报 "got result for unknown protocol state"这类底层错误
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 addopts = "-v --tb=short"
 
 [tool.coverage.run]
 source = ["app"]
 omit = ["app/main.py"]
+core = "sysmon"
+# 必须用 PEP 669 的 sysmon 核心。
+#
+# 默认的 C 追踪器（ctrace）在每次 await 进入 asyncpg 的 C 扩展后
+# 会丢失当前帧的追踪，后果是：函数明明跑完了，coverage 却认为它只执行到
+# 第一个 await 就停住。实测同一套测试下 app/api/ingest.py 会显示
+# 53%（实际 93%），且记录的行号能超出文件长度（出现 1165 这类不存在的行）。
+#
+# sysmon 绕过 sys.settrace，在 C 扩展前后都能正确记录，需要 Python 3.12+，
+# 与本项目要求一致。
 
 [dependency-groups]
 dev = [
