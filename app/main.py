@@ -17,7 +17,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.auth import router as auth_router
 from app.config import get_settings
+from app.db import engine
 
 settings = get_settings()
 
@@ -33,6 +35,13 @@ TAGS_METADATA = [
         "name": "系统",
         "description": "健康检查与运行状态。给部署平台和负载均衡调用的探针。",
     },
+    {
+        "name": "认证",
+        "description": (
+            "账号注册与身份验证。除注册接口外，本服务所有接口都需要在请求头中"
+            "携带 `Authorization: Bearer <API Key>`。"
+        ),
+    },
 ]
 
 
@@ -40,10 +49,17 @@ TAGS_METADATA = [
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """应用生命周期钩子：启动时初始化资源，关闭时释放资源。
 
-    后续会在这里挂载数据库连接池（Day 2）与投递 Worker 的启停（Day 4）。
+    这里刻意不做任何数据库连接操作：数据库不可用时服务仍应该能启动，
+    这样部署平台上的进程不会因为数据库临时不可达而被反复重启。
+    真正的就绪检查放在 /health/ready（Day 5 实现）。
+
+    后续会在这里挂载投递 Worker 的启停（Day 4）。
     """
     logger.info("HookRelay 启动 | environment=%s", settings.env)
     yield
+    # 关闭连接池，让数据库端看到连接正常断开，
+    # 而不是积压一堆处于半开状态的连接
+    await engine.dispose()
     logger.info("HookRelay 已关闭")
 
 
@@ -67,6 +83,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 挂载业务路由。后续每天的模块在这里逐个加入
+app.include_router(auth_router)
 
 
 @app.exception_handler(Exception)
