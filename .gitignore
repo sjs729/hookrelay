@@ -16,9 +16,13 @@ env/
 ENV/
 
 # ===== 环境变量与密钥（绝不提交）=====
+# 用 .env.* 通配而不能只列 .env / .env.local：
+# 部署时会自然地创建 .env.production、.env.staging 这类文件，
+# 只写具体名字的话它们会静默进入版本库。
 .env
-.env.local
-.env.*.local
+.env.*
+# 例外：模板文件必须提交，它是别人跑起来项目唯一的配置说明
+!.env.example
 *.pem
 *.key
 secrets/
