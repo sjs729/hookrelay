@@ -3,8 +3,8 @@
 本模块负责组装 FastAPI 应用：配置中间件、异常处理器与路由。
 Day 1 只包含健康检查，业务路由会在后续按天挂载：
 
-- Day 2  认证与接收地址管理
-- Day 3  事件接收入口
+- Day 2  认证与用户账号
+- Day 3  接收地址管理与事件接收入口
 - Day 4  事件查询与死信重放
 - Day 5  指标端点与就绪检查
 """
@@ -18,6 +18,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.auth import router as auth_router
+from app.api.endpoints import router as endpoints_router
+from app.api.ingest import router as ingest_router
 from app.config import get_settings
 from app.db import engine
 
@@ -40,6 +42,20 @@ TAGS_METADATA = [
         "description": (
             "账号注册与身份验证。除注册接口外，本服务所有接口都需要在请求头中"
             "携带 `Authorization: Bearer <API Key>`。"
+        ),
+    },
+    {
+        "name": "接收地址",
+        "description": (
+            "管理接收地址（endpoint）。一个接收地址 = 一个入站 token + 一个转发目标。"
+            "创建时会下发签名密钥，**明文只返回一次**。"
+        ),
+    },
+    {
+        "name": "事件接收",
+        "description": (
+            "公网入站入口。第三方服务把 Webhook 打到这里，需要携带 HMAC 签名与时间戳。"
+            "该接口不使用 API Key 鉴权——身份已由 URL 中的 token 与请求签名共同证明。"
         ),
     },
 ]
@@ -86,6 +102,8 @@ app.add_middleware(
 
 # 挂载业务路由。后续每天的模块在这里逐个加入
 app.include_router(auth_router)
+app.include_router(endpoints_router)
+app.include_router(ingest_router)
 
 
 @app.exception_handler(Exception)

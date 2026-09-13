@@ -15,7 +15,7 @@ password_hash、api_key_hash、secret_encrypted 这类字段永远不出现在�
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, EmailStr, Field
 
 
 class RegisterRequest(BaseModel):
@@ -62,3 +62,99 @@ class UserResponse(BaseModel):
     api_key_prefix: str
     is_active: bool
     created_at: datetime
+
+
+class EndpointCreateRequest(BaseModel):
+    """创建接收地址。"""
+
+    name: str = Field(
+        min_length=1,
+        max_length=100,
+        description="名称，便于在列表里识别这个接收地址的用途",
+        examples=["GitHub 推送通知"],
+    )
+    target_url: AnyHttpUrl = Field(
+        description="事件要转发到的目标地址，必须是 http 或 https",
+        examples=["https://example.com/webhook"],
+    )
+    max_attempts: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="最大投递尝试次数，含首次投递",
+    )
+    timeout_seconds: int = Field(
+        default=10,
+        ge=1,
+        le=120,
+        description="单次投递的超时时间（秒）",
+    )
+
+
+class EndpointUpdateRequest(BaseModel):
+    """修改接收地址。
+
+    所有字段都是可选的，只更新明确传了的字段。
+    区分“没传这个字段”和“传了 null”需要额外处理，
+    这里用 exclude_unset 在接口层过滤，未传的字段不会覆盖原值。
+    """
+
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    target_url: AnyHttpUrl | None = None
+    max_attempts: int | None = Field(default=None, ge=1, le=20)
+    timeout_seconds: int | None = Field(default=None, ge=1, le=120)
+    is_active: bool | None = Field(default=None, description="设置为 false 可暂停接收该地址的事件")
+
+
+class EndpointResponse(BaseModel):
+    """接收地址信息。
+
+    签名密钥只返回拖码。完整密钥是一个可以伪造任意请求的凭据，
+    不应当在每次查询时都拿出来传播一遍，降低泄露面。
+    """
+
+    id: UUID
+    name: str
+    token: str
+    target_url: str
+    secret_masked: str
+    max_attempts: int
+    timeout_seconds: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class EndpointCreatedResponse(EndpointResponse):
+    """创建成功后的响应，额外包含两项只返回一次的信息。"""
+
+    secret: str = Field(
+        description="签名密钥明文，**仅此一次**返回。调用方用它计算 HMAC 签名。",
+    )
+    ingest_url: str = Field(
+        description="入站接收地址，把第三方服务的 webhook 目标配到这里",
+    )
+
+
+class EndpointSecretResponse(BaseModel):
+    """重置签名密钥后的响应。"""
+
+    id: UUID
+    secret: str = Field(description="新的签名密钥明文，**仅此一次**返回")
+    secret_masked: str
+
+
+class EventAcceptedResponse(BaseModel):
+    """事件被接收后的响应。
+
+    返回 202 而不是 200 是有意为之：202 的含义是“请求已接受处理，
+    但尚未完成”。对调用方来说，拿到 202 只代表事件已安全落库，
+    投递是稍后异步发生的事。
+    """
+
+    event_id: UUID
+    endpoint_id: UUID
+    status: str
+    duplicate: bool = Field(
+        description="true 表示该事件此前已经收到过，本次没有重复入队",
+    )

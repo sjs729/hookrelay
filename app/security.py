@@ -21,10 +21,20 @@
 密钥类数据一旦进了日志文件，就等于泄露了。
 """
 
+import base64
 import hashlib
+import hmac
 import secrets
+import time
 
+from cryptography.fernet import Fernet, InvalidToken
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from pwdlib import PasswordHash
+
+from app.config import get_settings
+
+settings = get_settings()
 
 # argon2 的具体参数由 pwdlib 的 recommended() 决定，
 # 它会跟随业界推荐值调整，不需要我们自己维护参数
@@ -34,6 +44,7 @@ API_KEY_PREFIX = "hr"
 API_KEY_BYTES = 32
 API_KEY_PREFIX_LENGTH = 12
 URL_TOKEN_BYTES = 24
+SIGNING_SECRET_BYTES = 32
 
 
 def hash_password(password: str) -> str:
@@ -84,3 +95,122 @@ def generate_url_token() -> str:
     - token_urlsafe 返回 URL 安全字符集，不需要再做转义
     """
     return secrets.token_urlsafe(URL_TOKEN_BYTES)
+
+
+def generate_signing_secret() -> str:
+    """生成 endpoint 的 HMAC 签名密钥（明文，入库前需先加密）。"""
+    return secrets.token_urlsafe(SIGNING_SECRET_BYTES)
+
+
+# ============================================================
+# 对称加密：保护 endpoint 的签名密钥
+# ============================================================
+
+
+def _derive_fernet_key(secret_key: str) -> bytes:
+    """从应用总密钥派生出专用于 Fernet 的子密钥。
+
+    为什么不直接拿 SECRET_KEY 当 Fernet 密钥用？
+    同一个密钥被多个用途共用（这里加密 endpoint 密钥，将来可能还要签别的），
+    一旦某个用途的实现出问题，影响会横向扩散到其余所有用途。
+    用 HKDF 做一次密钥派生、给每个用途分配独立子密钥，能把风险限制在单点。
+    这正是 HKDF 的设计初衷，info 参数就是用来区分用途的标签。
+
+    派生结果固定 32 字节，再转成 Fernet 要求的 urlsafe base64 形式。
+    """
+    derived = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b"hookrelay:endpoint-secret:v1",
+    ).derive(secret_key.encode("utf-8"))
+    return base64.urlsafe_b64encode(derived)
+
+
+_fernet = Fernet(_derive_fernet_key(settings.secret_key))
+
+
+def encrypt_secret(plaintext: str) -> str:
+    """加密 endpoint 的签名密钥，返回可直接入库的字符串。
+
+    Fernet 保证密文带完整性校验（AES-CBC + HMAC），被篡改的密文解密时会直接失败，
+    不会解出一段看似正常实则错误的内容。
+    """
+    return _fernet.encrypt(plaintext.encode("utf-8")).decode("ascii")
+
+
+def decrypt_secret(ciphertext: str) -> str:
+    """解密 endpoint 的签名密钥。"""
+    try:
+        return _fernet.decrypt(ciphertext.encode("ascii")).decode("utf-8")
+    except InvalidToken as exc:
+        # 最常见的原因是 SECRET_KEY 被换过：旧密文用新密钥解不开
+        raise ValueError("密钥解密失败：SECRET_KEY 可能已被更换") from exc
+
+
+def mask_secret(plaintext: str) -> str:
+    """生成密钥掩码，供接口响应里展示。
+
+    只保留前 4 位和后 4 位，中间用固定长度的星号填充。
+    重点是**星号数量与真实长度无关**：如果按真实长度补星号，
+    长度本身就成了泄露信息，攻击者能据此缩小暴力枚举范围。
+    """
+    if len(plaintext) <= 10:
+        return "*" * 8
+    return f"{plaintext[:4]}{'*' * 8}{plaintext[-4:]}"
+
+
+# ============================================================
+# HMAC 签名：验证入站请求的真实性与时效性
+# ============================================================
+
+SIGNATURE_HEADER = "X-HookRelay-Signature"
+TIMESTAMP_HEADER = "X-HookRelay-Timestamp"
+IDEMPOTENCY_HEADER = "X-HookRelay-Idempotency-Key"
+SIGNATURE_ALGORITHM = "sha256="
+
+
+def compute_signature(secret: str, timestamp: str, body: bytes) -> str:
+    """计算 HMAC-SHA256 签名，返回形如 `sha256=<hex>` 的完整值。
+
+    签名对象是「时间戳 + "." + 请求体」，而不是只签请求体本身。
+    把时间戳纳入签名有两个作用：
+
+    1. 防篡改：攻击者改了时间戳就对不上签名，无法把旧请求"改成新的"再重放。
+    2. 防篡改请求体：请求体任何一字节的改动都会导致签名完全不同。
+
+    中间那个 "." 是分隔符，不能省。否则攻击者可以把时间戳和请求体
+    重新拼接成另一组能通过校验的组合（拼接歧义攻击）。
+    """
+    message = timestamp.encode("ascii") + b"." + body
+    digest = hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
+    return f"{SIGNATURE_ALGORITHM}{digest}"
+
+
+def verify_signature(secret: str, timestamp: str, body: bytes, provided: str) -> bool:
+    """校验签名是否正确。
+
+    必须用 hmac.compare_digest 而不是 `==`：
+    普通字符串比较会在遇到第一个不同字符时立即返回，比较耗时随"匹配前缀长度"
+    变化。攻击者通过反复测量响应时间，可以逐字节猜出正确签名。
+    compare_digest 无论内容如何都遍历完整长度，消除这个时间侧信道。
+    """
+    expected = compute_signature(secret, timestamp, body)
+    return hmac.compare_digest(expected, provided)
+
+
+def is_timestamp_fresh(timestamp: str, tolerance_seconds: int) -> bool:
+    """判断请求时间戳是否落在容差窗口内。
+
+    容差窗口是双重考虑：
+    - 太严：调用方与本服务存在时钟偏差时会被误拒
+    - 太松：重放攻击的有效时间窗口被拉长
+
+    用绝对值比较（而不是只判断"是否太旧"），同时拒绝时间戳在未来的请求。
+    否则攻击者可以把时间戳设到很远的未来，让这个请求在很长时间内都能被重放。
+    """
+    try:
+        ts = int(timestamp)
+    except (TypeError, ValueError):
+        return False
+    return abs(int(time.time()) - ts) <= tolerance_seconds
