@@ -25,6 +25,35 @@ RESPONSE_BODY_LIMIT = 1024
 DELIVERY_ID_HEADER = "X-HookRelay-Delivery-Id"
 ATTEMPT_HEADER = "X-HookRelay-Attempt"
 
+# 这些头绝对不能从入站请求透传到出站请求。
+#
+# content-length 和 transfer-encoding 描述的是「原始请求体」的大小与传输方式，
+# 而我们出站发送的 body 是重新序列化的：数据库里存的是 JSONB（已解析的结构），
+# 取出来再用紧凑分隔符 dump 一次，字节数与上游发来的原始请求不同。
+# 照搬这两个头会让 httpx 按错误的长度发请求，h11 在收尾时发现实际写入
+# 的字节数少于声明值，直接抛 LocalProtocolError。
+#
+# 这个错误在本地开发时极难复现：上游请求体如果恰好等于重新序列化后的长度
+# （比如键序和空格都没变），一切正常；一旦长度不等就整个 Worker 轮次异常。
+#
+# host 同理：它描述的是入站请求的目标主机，而出站的目标是另一个地址。
+# 其余是 HTTP/1.1 的连接管理头（hop-by-hop），语义上只能作用于单次连接，
+# 代理转发时必须剥掉。
+_HOP_BY_HOP_HEADERS = frozenset(
+    {
+        "connection",
+        "content-length",
+        "host",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+    }
+)
+
 # 这两个 4xx 需要重试，其余 4xx 都是调用方的问题，重试没有意义
 RETRYABLE_CLIENT_STATUS = frozenset({408, 429})
 
@@ -97,9 +126,22 @@ def _build_headers(
     在原始入站请求头的基础上覆盖几项。保留原始头是有用的：
     很多下游需要知道事件来源（GitHub 的 X-GitHub-Event、GitLab 的
     X-Gitlab-Event），这些信息我们不应该在转发时丢掉。
+
+    但连接管理类的头必须剥掉，详见 _HOP_BY_HOP_HEADERS 的注释：
+    其中 content-length 处理不当会让 httpx 发出发不出请求体长度的请求，
+    直接导致投递全部失败。
+
+    历史上已经入库的事件里可能存着 content-length，所以这道过滤放在出站层，
+    而不是只在上游接收时过滤——否则旧事件重放时会再次撞上同样的问题。
     """
+    forwarded = {
+        name: value
+        for name, value in inbound_headers.items()
+        if name.lower() not in _HOP_BY_HOP_HEADERS
+    }
+
     return {
-        **inbound_headers,
+        **forwarded,
         "content-type": "application/json",
         TIMESTAMP_HEADER: timestamp,
         SIGNATURE_HEADER: signature,

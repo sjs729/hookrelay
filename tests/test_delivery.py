@@ -117,6 +117,55 @@ class TestDeliverOnce:
         _, request = await deliver_with(handler, inbound_headers={"x-custom-trace": "t-1"})
         assert request.headers["x-custom-trace"] == "t-1"
 
+    async def test_inbound_content_length_is_not_forwarded(self) -> None:
+        """入站请求的 Content-Length 不能被带到出站请求上。
+
+        出站 body 是重新序列化的（数据库存 JSONB，取出来紧凑 dump 一遍），
+        字节数与上游发来的原始请求不同。如果把这个头照搬过去，
+        httpx 会按错误的长度发送，h11 收尾时发现实际写入的字节数少于声明值，
+        直接抛 LocalProtocolError。
+
+        这个 bug 曾在 Docker 环境里让整个 Worker 轮次异常：
+        上游发的 body 带空格，而我们紧凑序列化后变短，
+        长度一对不上就发不出去——表现是事件永远停在 delivering。
+        """
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200)
+
+        body = b'{"a":1}'
+        _, request = await deliver_with(
+            handler,
+            payload_bytes=body,
+            inbound_headers={"content-length": "9999"},
+        )
+        # 用的必须是 httpx 按实际 body 算出来的那个值
+        assert request.headers["content-length"] == str(len(body))
+
+    async def test_hop_by_hop_headers_are_stripped(self) -> None:
+        """连接管理类的头不能转发到下一个跳。
+
+        这些头描述的是一次连接的状态，代理转发时必须剥掉，
+        否则下游可能按上游的连接语义去处理我们的请求。
+        """
+
+        async def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200)
+
+        _, request = await deliver_with(
+            handler,
+            inbound_headers={
+                "connection": "keep-alive",
+                "transfer-encoding": "chunked",
+                "host": "upstream.example.com",
+                "x-keep-me": "yes",
+            },
+        )
+        assert "x-keep-me" in request.headers
+        assert "transfer-encoding" not in request.headers
+        # host 会被 httpx 改成真正的目标主机，不能是入站时的那个
+        assert request.headers["host"] == "downstream.example.com"
+
     async def test_timeout_is_retryable(self) -> None:
         """超时属于暂时性故障，要重试。"""
 

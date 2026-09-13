@@ -130,18 +130,24 @@ def _parse_payload(content_type: str, body: bytes) -> dict[str, Any]:
 def _capture_headers(request: Request) -> dict[str, str]:
     """记录入站请求头，供排查问题与后续转发使用。
 
-    过滤掉两类头：
+    过滤掉三类头：
     - Authorization / Cookie：调用方的凭据，转发给下游等于泄露
     - 我们自己的签名与时间戳头：那是给本服务校验用的，转发没有意义，
       出站请求会用 endpoint 密钥重新签名
+    - 描述请求体大小与传输方式的头（content-length / transfer-encoding /
+      host）：出站请求的 body 是重新序列化的，长度与原始请求不同；
+      这几项在出站时都会重新生成，存下来只会误导排查。
 
-    其余原样保留，方便排查"上游到底发了什么"。
+    其余原样保留，方便排查“上游到底发了什么”。
     """
     excluded = {
         "authorization",
+        "content-length",
         "cookie",
+        "host",
         SIGNATURE_HEADER.lower(),
         TIMESTAMP_HEADER.lower(),
+        "transfer-encoding",
     }
     return {name: value for name, value in request.headers.items() if name.lower() not in excluded}
 

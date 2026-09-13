@@ -37,6 +37,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # 让容器内能用 host.docker.internal 指回宿主机。
+    # 否则没法验证「HookRelay 投递到跑在宿主机的接收端」这类真实场景：
+    # 容器里的 127.0.0.1 是容器自己，不是宿主机。
+    # Linux 上 docker 不会自动注入这个主机名，需要 host-gateway 显式声明；
+    # macOS / Windows 的 Docker Desktop 本来就有，写上也不冲突。
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       ENV: prod
       # 主机名用服务名 db，由 compose 的内置 DNS 解析。
