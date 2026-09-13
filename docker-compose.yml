@@ -7,6 +7,10 @@
 #
 # 然后访问 http://127.0.0.1:8000/docs
 
+# 必须显式指定项目名。compose 默认取所在目录名作为项目名，
+# 而本仓库的目录名是中文（项目），会直接报 "project name must not be empty"。
+name: hookrelay
+
 services:
   db:
     image: postgres:16-alpine

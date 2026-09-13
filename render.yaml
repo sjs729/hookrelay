@@ -1,0 +1,53 @@
+# Render 的 Blueprint 配置文件。
+#
+# 它的作用是：在 Render 上创建一个服务时，构建方式、启动命令、
+# 健康检查路径、需要哪些环境变量都写在这里，而不是靠一堆手工点击。
+# 好处是配置随代码一起进入版本控制——哪天换了平台或者想重建一套环境，
+# 照着这个文件来就行，不会漏掉某个当时随手填的环境变量。
+#
+# 用法：Render 控制台 → New → Blueprint → 选中本仓库。
+#
+# 免费层有两个必须知道的限制，都写进了下面的注释：
+#   1. 服务空闲一段时间后休眠，下次请求要等几十秒冷启动
+#   2. 只暴露一个端口，所以 Worker 的指标端口在线上是访问不到的
+
+services:
+  - type: web
+    name: hookrelay
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    # 数据库连通性检查用 /health/ready 更准确，但休眠唤醒期间数据库
+    # 可能还没连上，用只检查进程存活的 /health 可以避免健康检查
+    # 把正在启动的实例判定为失败并反复重启
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ENV
+        value: prod
+      - key: LOG_JSON
+        value: "true"
+      - key: LOG_LEVEL
+        value: INFO
+
+      # Render 会生成一个随机值。这个值用于派生 Fernet 密钥，
+      # 而 endpoint 的下游签名密钥全部用它加密后存库。
+      # 一旦丢失，已存库的密钥无法恢复，只能逐个重建 endpoint。
+      # 生成后请在 Render 控制台把值复制出来另存一份。
+      - key: SECRET_KEY
+        generateValue: true
+
+      # 不写死在这里：连接串含密码，属于凭据，只放在 Render 控制台里
+      - key: DATABASE_URL
+        sync: false
+
+      # 免费层只给一个容器，Web 与 Worker 由 start.sh 在同一容器内启动。
+      # 这两个端口只在容器内部使用：PORT 给 Web，9101 给 Worker 的指标。
+      - key: WORKER_METRICS_PORT
+        value: "9101"
+
+      # 免费实例 CPU 有限，并发调低一些，避免十个请求同时超时
+      # 反而拖慢整体吞吐
+      - key: WORKER_CONCURRENCY
+        value: "4"
