@@ -80,9 +80,7 @@ class TestAuthentication:
 
     async def test_malformed_authorization_header_returns_401(self, client, account) -> None:
         """缺少 Bearer 前缀的请求头视为未认证。"""
-        response = await client.get(
-            "/api/endpoints", headers={"Authorization": account["api_key"]}
-        )
+        response = await client.get("/api/endpoints", headers={"Authorization": account["api_key"]})
         assert response.status_code == 401
 
     async def test_current_user_returns_account(self, client, auth_headers, account) -> None:
@@ -217,9 +215,7 @@ class TestSecretRotation:
         assert response.status_code == 401
 
     async def test_new_secret_works(self, client, auth_headers, endpoint) -> None:
-        rotated = await client.post(
-            f"/api/endpoints/{endpoint['id']}/secret", headers=auth_headers
-        )
+        rotated = await client.post(f"/api/endpoints/{endpoint['id']}/secret", headers=auth_headers)
         new_secret = rotated.json()["secret"]
 
         body = json_body({"event_id": "evt-new-secret"})

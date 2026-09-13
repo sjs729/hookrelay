@@ -70,16 +70,10 @@ async def list_events(
 
     base = select(Event).join(Endpoint, Endpoint.id == Event.endpoint_id).where(*conditions)
 
-    total = (
-        await session.execute(select(func.count()).select_from(base.subquery()))
-    ).scalar_one()
+    total = (await session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
 
     rows = (
-        (
-            await session.execute(
-                base.order_by(Event.created_at.desc()).limit(limit).offset(offset)
-            )
-        )
+        (await session.execute(base.order_by(Event.created_at.desc()).limit(limit).offset(offset)))
         .scalars()
         .all()
     )

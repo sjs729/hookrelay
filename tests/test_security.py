@@ -184,9 +184,7 @@ class TestSignature:
         ("12", "3body") 和 ("123", "body") 会算出同一个签名，
         攻击者可以把时间戳的末位搬到正文开头而不被发现。
         """
-        assert compute_signature("key", "12", b"3body") != compute_signature(
-            "key", "123", b"body"
-        )
+        assert compute_signature("key", "12", b"3body") != compute_signature("key", "123", b"body")
 
     def test_verify_accepts_correct_signature(self) -> None:
         signature = compute_signature("key", "1700000000", b'{"a":1}')

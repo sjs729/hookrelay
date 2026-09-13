@@ -181,9 +181,9 @@ class DeliveryWorker:
 
         # 数据库存的是解析后的 JSONB，这里重新序列化后发送。
         # ensure_ascii=False 保留中文原文，separators 去掉多余空格让体积更小。
-        payload_bytes = json.dumps(
-            event.payload, ensure_ascii=False, separators=(",", ":")
-        ).encode("utf-8")
+        payload_bytes = json.dumps(event.payload, ensure_ascii=False, separators=(",", ":")).encode(
+            "utf-8"
+        )
 
         result = await deliver_once(
             client,

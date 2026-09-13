@@ -143,9 +143,7 @@ def _capture_headers(request: Request) -> dict[str, str]:
         SIGNATURE_HEADER.lower(),
         TIMESTAMP_HEADER.lower(),
     }
-    return {
-        name: value for name, value in request.headers.items() if name.lower() not in excluded
-    }
+    return {name: value for name, value in request.headers.items() if name.lower() not in excluded}
 
 
 def _resolve_idempotency_key(

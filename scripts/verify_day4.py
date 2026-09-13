@@ -293,9 +293,7 @@ def main() -> int:
         f"last_error={dead_event.get('last_error')}",
     )
 
-    dead_list = client.get(
-        f"{API}/api/events", headers=headers, params={"status": "dead"}
-    ).json()
+    dead_list = client.get(f"{API}/api/events", headers=headers, params={"status": "dead"}).json()
     check(
         "死信列表可查询",
         any(item["id"] == dead_event_id for item in dead_list["items"]),
@@ -357,7 +355,8 @@ def main() -> int:
 
     again = client.post(f"{API}/api/events/{dead_event_id}/replay", headers=headers)
     check(
-        "已成功的事件允许再次重放（运维可能需要重新推送）",        again.status_code == 200,
+        "已成功的事件允许再次重放（运维可能需要重新推送）",
+        again.status_code == 200,
         f"HTTP {again.status_code}",
     )
 

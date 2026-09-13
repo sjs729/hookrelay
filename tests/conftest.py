@@ -80,10 +80,7 @@ async def _clean_tables() -> AsyncIterator[None]:
     yield
     async with engine.begin() as conn:
         await conn.execute(
-            text(
-                "TRUNCATE delivery_attempts, events, endpoints, users "
-                "RESTART IDENTITY CASCADE"
-            )
+            text("TRUNCATE delivery_attempts, events, endpoints, users RESTART IDENTITY CASCADE")
         )
 
 

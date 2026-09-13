@@ -153,9 +153,7 @@ def main() -> int:
                 params={"limit": 200},
             ).json()
             pending = sum(
-                1
-                for item in summary["items"]
-                if item["status"] in {"pending", "delivering"}
+                1 for item in summary["items"] if item["status"] in {"pending", "delivering"}
             )
             if pending == 0:
                 break
@@ -172,8 +170,7 @@ def main() -> int:
         print("\n=== 3. 核心断言：并发下没有重复投递 ===")
 
         detailed = [
-            client.get(f"{API}/api/events/{item['id']}", headers=headers).json()
-            for item in items
+            client.get(f"{API}/api/events/{item['id']}", headers=headers).json() for item in items
         ]
 
         max_attempts = max(item["attempt_count"] for item in detailed)

@@ -27,8 +27,7 @@ router = APIRouter(prefix="/api/auth", tags=["认证"])
     status_code=status.HTTP_201_CREATED,
     summary="注册账号并获取 API Key",
     description=(
-        "注册成功后返回 API Key 明文，**仅此一次**。服务端只保存哈希，"
-        "丢失后无法找回，只能重置。"
+        "注册成功后返回 API Key 明文，**仅此一次**。服务端只保存哈希，丢失后无法找回，只能重置。"
     ),
 )
 async def register(payload: RegisterRequest, session: SessionDep) -> RegisterResponse:
