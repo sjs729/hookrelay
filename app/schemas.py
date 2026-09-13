@@ -13,6 +13,7 @@ password_hash、api_key_hash、secret_encrypted 这类字段永远不出现在�
 """
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, EmailStr, Field
@@ -158,3 +159,61 @@ class EventAcceptedResponse(BaseModel):
     duplicate: bool = Field(
         description="true 表示该事件此前已经收到过，本次没有重复入队",
     )
+
+
+class DeliveryAttemptResponse(BaseModel):
+    """一次投递尝试的记录。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    attempt_number: int
+    status_code: int | None = Field(description="HTTP 状态码；连接失败或超时时为 null")
+    response_body: str | None = Field(description="响应体前 1KB，便于排查对方返回了什么")
+    error: str | None
+    duration_ms: int | None
+    created_at: datetime
+
+
+class EventResponse(BaseModel):
+    """事件摘要，用于列表展示。不含 payload，避免列表响应过大。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    endpoint_id: UUID
+    status: str = Field(description="pending / delivering / succeeded / dead")
+    attempt_count: int
+    idempotency_key: str | None
+    next_attempt_at: datetime | None = Field(description="下次可投递的时间，非 pending 时为 null")
+    last_error: str | None
+    created_at: datetime
+    completed_at: datetime | None
+
+
+class EventDetailResponse(EventResponse):
+    """事件详情：额外包含原始内容与每一次投递的完整记录。"""
+
+    payload: dict[str, Any]
+    headers: dict[str, Any]
+    attempts: list[DeliveryAttemptResponse]
+
+
+class EventListResponse(BaseModel):
+    """分页结果。
+
+    同时返回 total，调用方不需要额外发一次请求才知道总数。
+    """
+
+    total: int
+    limit: int
+    offset: int
+    items: list[EventResponse]
+
+
+class EventReplayResponse(BaseModel):
+    """死信重放的结果。"""
+
+    event_id: UUID
+    status: str
+    scheduled_at: datetime = Field(description="重新入队的时间，Worker 下一轮就会取走")
+    message: str

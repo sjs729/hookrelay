@@ -223,7 +223,17 @@ class Event(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     )
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
 
-    # 下次可以投递的时间。首次入队时立即置为"现在"，让 Worker 马上取走
+    # 投递轮次：每次人工重放 +1。
+    # attempt_count 表示“本轮已经尝试了几次”，重放时清零；
+    # attempt_generation 表示“这是第几轮”，用来把不同轮次的尝试区分开。
+    # 两者缺一不可：如果只看 attempt_count，重放后的第 1 次尝试会和
+    # 历史记录里的第 1 次撞上，破坏 delivery_attempts 的唯一约束；
+    # 而直接删掉历史记录又会丢掉排查依据。
+    attempt_generation: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+
+    # 下次可以投递的时间。首次入队时立即置为“现在”，让 Worker 马上取走
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # 租约字段：Worker 取走任务时打上标记，防止多个 Worker 同时投递同一条，
@@ -286,6 +296,9 @@ class DeliveryAttempt(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     )
     attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
 
+    # 该记录属于事件的第几轮投递。首次入队为 0，人工重放后递增。
+    generation: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
     # 以下字段允许为空：连接超时、DNS 失败这类情况根本没有 HTTP 状态码
     status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
     response_body: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -295,6 +308,13 @@ class DeliveryAttempt(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     event: Mapped["Event"] = relationship(back_populates="attempts")
 
     __table_args__ = (
-        # 同一事件下第几次尝试是唯一的，避免重试逻辑出 bug 时重复记录
-        UniqueConstraint("event_id", "attempt_number", name="uq_attempts_event_number"),
+        # 同一事件的同一轮次下，第几次尝试是唯一的。
+        # 加入 generation 是为了让“重放后重新从第 1 次开始计数”这件事
+        # 不会和历史记录冲突，从而不必删除旧数据。
+        UniqueConstraint(
+            "event_id",
+            "generation",
+            "attempt_number",
+            name="uq_attempts_event_generation_number",
+        ),
     )

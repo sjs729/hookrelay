@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.auth import router as auth_router
 from app.api.endpoints import router as endpoints_router
+from app.api.events import router as events_router
 from app.api.ingest import router as ingest_router
 from app.config import get_settings
 from app.db import engine
@@ -58,6 +59,14 @@ TAGS_METADATA = [
             "该接口不使用 API Key 鉴权——身份已由 URL 中的 token 与请求签名共同证明。"
         ),
     },
+    {
+        "name": "事件查询",
+        "description": (
+            "查看事件及每一次投递的结果，并把进入死信的事件重新放回队列。"
+            "死信不会自动恢复——这是有意为之：反复重试一个已经确认不可用的目标"
+            "只会浪费资源，是否需要恢复取决于下游何时修好。"
+        ),
+    },
 ]
 
 
@@ -69,7 +78,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     这样部署平台上的进程不会因为数据库临时不可达而被反复重启。
     真正的就绪检查放在 /health/ready（Day 5 实现）。
 
-    后续会在这里挂载投递 Worker 的启停（Day 4）。
+    投递 Worker 是独立进程（`uv run python -m app.worker`），不在这里启动：
+    Web 服务与 Worker 的重启是两回事，绑定在一起会导致发布 Web 新版本时
+    把正在进行的投递任务一起打断。
     """
     logger.info("HookRelay 启动 | environment=%s", settings.env)
     yield
@@ -104,6 +115,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(endpoints_router)
 app.include_router(ingest_router)
+app.include_router(events_router)
 
 
 @app.exception_handler(Exception)

@@ -51,9 +51,16 @@ ignore = [
     "RUF003",  # 全角标点（注释）
 ]
 
+[tool.ruff.lint.isort]
+# alembic 是第三方库，但项目根目录下也有一个 alembic/ 文件夹（迁移脚本的
+# 固定位置），ruff 会误判成第一方包并给出错误的分组建议。这里显式声明。
+known-third-party = ["alembic"]
+
+
 [tool.ruff.lint.per-file-ignores]
 # 测试文件允许使用 assert 与硬编码测试数据
-"tests/*" = ["S101", "S105", "S106"]
+# S311 是因为测试里用了固定种子的 random.Random 来验证抖动的随机性
+"tests/*" = ["S101", "S105", "S106", "S311"]
 # 验收脚本与辅助脚本同样放宽：假密码、假密钥、print 输出都是必要的
 "scripts/*" = ["S101", "S105", "S106", "T201"]
 "alembic/*" = ["S105", "S106"]
