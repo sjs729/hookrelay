@@ -174,11 +174,14 @@ import hashlib, hmac, json, time, httpx
 secret = "步骤 2 拿到的 secret"
 body = json.dumps({"order_id": 1001}, ensure_ascii=False).encode()
 timestamp = str(int(time.time()))
-signature = "sha256=" + hmac.new(
-    secret.encode(),
-    f"{timestamp}.".encode() + body,
-    hashlib.sha256,
-).hexdigest()
+signature = (
+    "sha256="
+    + hmac.new(
+        secret.encode(),
+        f"{timestamp}.".encode() + body,
+        hashlib.sha256,
+    ).hexdigest()
+)
 
 httpx.post(
     ingest_url,
