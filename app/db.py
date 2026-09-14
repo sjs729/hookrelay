@@ -31,12 +31,14 @@ from app.config import get_settings
 
 settings = get_settings()
 
-# 连接池参数。数值按"单实例部署 + 免费平台规格"的规模设定：
-# 常驻 10 条 + 峰值最多再借 20 条，对 32GB 内存的开发机和生产免费层都绰绰有余。
-POOL_SIZE = 10
-MAX_OVERFLOW = 20
-POOL_TIMEOUT_SECONDS = 30
-POOL_RECYCLE_SECONDS = 1800
+# 连接池参数从配置读取，而不是写死在模块里。
+# 原因：并发拐点直接由这两个数字决定（见 config.py 里的说明），
+# 而不同部署环境的合理值不同——免费平台的小容器和自建服务器不是一回事。
+# 写死的话，压测发现问题之后只能改代码重新构建，调参成本太高。
+POOL_SIZE = settings.db_pool_size
+MAX_OVERFLOW = settings.db_max_overflow
+POOL_TIMEOUT_SECONDS = settings.db_pool_timeout_seconds
+POOL_RECYCLE_SECONDS = settings.db_pool_recycle_seconds
 
 
 def create_engine(url: str) -> AsyncEngine:

@@ -54,6 +54,13 @@ services:
       SECRET_KEY: compose-local-only-not-a-real-secret
       LOG_JSON: "true"
       LOG_LEVEL: INFO
+      # 默认保持线上一致（120/分钟），但留出覆盖入口：
+      # 压测时用 INGEST_RATE_LIMIT_PER_MINUTE=1000000 docker compose up -d，
+      # 否则限流会成为吞吐瓶颈，测到的是限流阈值而不是服务容量
+      INGEST_RATE_LIMIT_PER_MINUTE: ${INGEST_RATE_LIMIT_PER_MINUTE:-120}
+      # 连接池规格也做成可覆盖，便于验证并发拐点确实由它决定
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-10}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-20}
     ports:
       - "8000:8000"   # Web 服务与 /docs
       - "9101:9101"   # Worker 的 Prometheus 指标
