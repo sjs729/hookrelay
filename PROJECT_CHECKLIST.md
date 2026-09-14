@@ -113,42 +113,42 @@ RETRY_JITTER_RATIO=0.2
 
 ### 1.1 环境准备
 
-- [ ] 安装 uv：`brew install uv`
-- [ ] 用 uv 安装 Python 3.12：`uv python install 3.12`
-- [ ] 配置国内镜像源（避免依赖下载卡住）
-- [ ] 验证 `uv --version` 与 `uv run python --version`
+- [x] 安装 uv：`brew install uv`
+- [x] 用 uv 安装 Python 3.12：`uv python install 3.12`
+- [x] 配置国内镜像源（避免依赖下载卡住）
+- [x] 验证 `uv --version` 与 `uv run python --version`
 
 ### 1.2 项目初始化
 
-- [ ] 生成 `pyproject.toml`，声明运行依赖与开发依赖
-- [ ] 创建目录：`app/`、`app/api/`、`app/services/`、`tests/`、`scripts/`
-- [ ] 编写 `.gitignore`（Python 标准模板 + `.env` + `.venv`）
-- [ ] 编写 `.env.example`（只放变量名，不放真实密钥）
-- [ ] 编写 `LICENSE`（MIT）
-- [ ] 创建 `README.md` 占位
+- [x] 生成 `pyproject.toml`，声明运行依赖与开发依赖
+- [x] 创建目录：`app/`、`app/api/`、`app/services/`、`tests/`、`scripts/`
+- [x] 编写 `.gitignore`（Python 标准模板 + `.env` + `.venv`）
+- [x] 编写 `.env.example`（只放变量名，不放真实密钥）
+- [x] 编写 `LICENSE`（MIT）
+- [x] 创建 `README.md` 占位
 
 ### 1.3 基础代码
 
-- [ ] `app/config.py`：用 pydantic-settings 读取环境变量，提供类型化配置对象
-- [ ] `app/main.py`：创建 FastAPI 实例，配置标题、版本、描述
-- [ ] `app/main.py`：实现 lifespan（启动/关闭钩子骨架，为后续 Worker 预留）
-- [ ] `GET /health`：返回服务存活状态
-- [ ] 全局异常处理器：统一错误响应格式
-- [ ] CORS 中间件配置
+- [x] `app/config.py`：用 pydantic-settings 读取环境变量，提供类型化配置对象
+- [x] `app/main.py`：创建 FastAPI 实例，配置标题、版本、描述
+- [x] `app/main.py`：实现 lifespan（启动/关闭钩子骨架，为后续 Worker 预留）
+- [x] `GET /health`：返回服务存活状态
+- [x] 全局异常处理器：统一错误响应格式
+- [x] CORS 中间件配置
 
 ### 1.4 验证
 
-- [ ] `uv run uvicorn app.main:app --reload` 启动成功
-- [ ] 浏览器打开 `http://127.0.0.1:8000/docs` 看到接口文档页
-- [ ] `curl http://127.0.0.1:8000/health` 返回 200
+- [x] `uv run uvicorn app.main:app --reload` 启动成功
+- [x] 浏览器打开 `http://127.0.0.1:8000/docs` 看到接口文档页
+- [x] `curl http://127.0.0.1:8000/health` 返回 200
 
 ### 1.5 Git 与双远端
 
-- [ ] 确认 `.env` 未被纳入版本控制
-- [ ] 首次提交，commit message 遵循规范（如 `chore: 初始化项目骨架`）
-- [ ] 在 GitHub 创建仓库并配置为 `upstream` 或 `github` 远端
-- [ ] 在 Gitee 创建仓库并配置为 `origin` 或 `gitee` 远端
-- [ ] 推送到两个平台，确认两边都能看到代码
+- [x] 确认 `.env` 未被纳入版本控制
+- [x] 首次提交，commit message 遵循规范（如 `chore: 初始化项目骨架`）
+- [x] 在 GitHub 创建仓库并配置为 `upstream` 或 `github` 远端
+- [x] 在 Gitee 创建仓库并配置为 `origin` 或 `gitee` 远端
+- [x] 推送到两个平台，确认两边都能看到代码
 
 **完成标志**：本地能打开接口文档页，两个远程仓库都有代码。
 
@@ -158,54 +158,54 @@ RETRY_JITTER_RATIO=0.2
 
 ### 2.1 数据库
 
-- [ ] `brew install postgresql@16`
-- [ ] `brew services start postgresql@16`
-- [ ] 创建开发库 `hookrelay_dev`
-- [ ] 创建测试库 `hookrelay_test`
-- [ ] 验证能连上
+- [x] `brew install postgresql@16`
+- [x] `brew services start postgresql@16`
+- [x] 创建开发库 `hookrelay_dev`
+- [x] 创建测试库 `hookrelay_test`
+- [x] 验证能连上
 
 ### 2.2 连接层
 
-- [ ] `app/db.py`：创建异步 engine（含连接池参数）
-- [ ] `app/db.py`：创建 async session 工厂
-- [ ] `app/db.py`：提供 FastAPI 依赖注入用的 session 获取函数
-- [ ] `app/models.py`：定义 `Base` 与公共字段 mixin（id、created_at）
+- [x] `app/db.py`：创建异步 engine（含连接池参数）
+- [x] `app/db.py`：创建 async session 工厂
+- [x] `app/db.py`：提供 FastAPI 依赖注入用的 session 获取函数
+- [x] `app/models.py`：定义 `Base` 与公共字段 mixin（id、created_at）
 
 ### 2.3 数据模型
 
-- [ ] `users` 表：id、email（唯一）、password_hash、api_key_hash（唯一）、created_at
-- [ ] `endpoints` 表：id、user_id、name、token（唯一）、target_url、secret_encrypted、max_attempts、timeout_seconds、active、created_at
-- [ ] `events` 表：id、endpoint_id、payload（JSONB）、headers（JSONB）、idempotency_key、status、attempt_count、next_attempt_at、locked_at、locked_by、created_at、completed_at
-- [ ] `delivery_attempts` 表：id、event_id、attempt_number、status_code、response_body、error、duration_ms、created_at
-- [ ] 唯一索引：`UNIQUE(endpoint_id, idempotency_key)` —— 幂等的实现基础
-- [ ] 部分索引：`(status, next_attempt_at) WHERE status = 'pending'` —— 队列扫描优化
-- [ ] 外键与级联删除策略
-- [ ] status 字段取值约束：`pending | delivering | succeeded | dead`
+- [x] `users` 表：id、email（唯一）、password_hash、api_key_hash（唯一）、created_at
+- [x] `endpoints` 表：id、user_id、name、token（唯一）、target_url、secret_encrypted、max_attempts、timeout_seconds、active、created_at
+- [x] `events` 表：id、endpoint_id、payload（JSONB）、headers（JSONB）、idempotency_key、status、attempt_count、next_attempt_at、locked_at、locked_by、created_at、completed_at
+- [x] `delivery_attempts` 表：id、event_id、attempt_number、status_code、response_body、error、duration_ms、created_at
+- [x] 唯一索引：`UNIQUE(endpoint_id, idempotency_key)` —— 幂等的实现基础
+- [x] 部分索引：`(status, next_attempt_at) WHERE status = 'pending'` —— 队列扫描优化
+- [x] 外键与级联删除策略
+- [x] status 字段取值约束：`pending | delivering | succeeded | dead`
 
 ### 2.4 迁移
 
-- [ ] `alembic init` 生成迁移目录
-- [ ] 改造 `alembic/env.py` 支持异步引擎
-- [ ] 让 Alembic 自动发现模型的 metadata
-- [ ] 生成首个迁移脚本
-- [ ] 人工检查生成的 SQL 是否符合预期（索引、约束是否都在）
-- [ ] `alembic upgrade head` 建表成功
-- [ ] 验证能 `downgrade` 回滚
+- [x] `alembic init` 生成迁移目录
+- [x] 改造 `alembic/env.py` 支持异步引擎
+- [x] 让 Alembic 自动发现模型的 metadata
+- [x] 生成首个迁移脚本
+- [x] 人工检查生成的 SQL 是否符合预期（索引、约束是否都在）
+- [x] `alembic upgrade head` 建表成功
+- [x] 验证能 `downgrade` 回滚
 
 ### 2.5 认证体系
 
-- [ ] `app/security.py`：密码哈希与校验（argon2）
-- [ ] `app/security.py`：API Key 生成、哈希与校验
-- [ ] `POST /api/auth/register`：注册并返回 API Key（仅此一次明文返回）
-- [ ] `app/api/deps.py`：从 `Authorization: Bearer` 解析当前用户
-- [ ] `app/schemas.py`：注册请求/响应模型
+- [x] `app/security.py`：密码哈希与校验（argon2）
+- [x] `app/security.py`：API Key 生成、哈希与校验
+- [x] `POST /api/auth/register`：注册并返回 API Key（仅此一次明文返回）
+- [x] `app/api/deps.py`：从 `Authorization: Bearer` 解析当前用户
+- [x] `app/schemas.py`：注册请求/响应模型
 
 ### 2.6 验证
 
-- [ ] 注册用户成功，拿到 API Key
-- [ ] 用 API Key 访问受保护接口通过
-- [ ] 用错误 Key 访问返回 401
-- [ ] 数据库里能看到迁移建出的表和索引
+- [x] 注册用户成功，拿到 API Key
+- [x] 用 API Key 访问受保护接口通过
+- [x] 用错误 Key 访问返回 401
+- [x] 数据库里能看到迁移建出的表和索引
 
 **完成标志**：迁移建表成功，可注册用户并用 API Key 鉴权。
 
@@ -215,42 +215,42 @@ RETRY_JITTER_RATIO=0.2
 
 ### 5.1 Endpoint 管理
 
-- [ ] `POST /api/endpoints`：创建接收地址，自动生成 token 与签名密钥
-- [ ] `GET /api/endpoints`：列出当前用户的接收地址
-- [ ] `GET /api/endpoints/{id}`：查看详情
-- [ ] `PATCH /api/endpoints/{id}`：修改目标 URL、重试次数、超时
-- [ ] `DELETE /api/endpoints/{id}`：删除
-- [ ] 接收地址的签名密钥用 Fernet 加密后入库，接口只回显掩码
-- [ ] 提供「重置密钥」接口
+- [x] `POST /api/endpoints`：创建接收地址，自动生成 token 与签名密钥
+- [x] `GET /api/endpoints`：列出当前用户的接收地址
+- [x] `GET /api/endpoints/{id}`：查看详情
+- [x] `PATCH /api/endpoints/{id}`：修改目标 URL、重试次数、超时
+- [x] `DELETE /api/endpoints/{id}`：删除
+- [x] 接收地址的签名密钥用 Fernet 加密后入库，接口只回显掩码
+- [x] 提供「重置密钥」接口
 
 ### 5.2 签名与防重放（P0 核心安全点）
 
-- [ ] `app/security.py`：生成 HMAC-SHA256 签名（签名对象：时间戳 + 请求体）
-- [ ] `app/security.py`：校验签名，使用 `hmac.compare_digest` 恒定时间比较
-- [ ] 校验时间戳头，超出容差窗口（默认 300 秒）判定为过期请求
-- [ ] 签名格式设计：`X-HookRelay-Signature: sha256=<hex>` 与 `X-HookRelay-Timestamp`
-- [ ] 失败返回 401 并记录原因
+- [x] `app/security.py`：生成 HMAC-SHA256 签名（签名对象：时间戳 + 请求体）
+- [x] `app/security.py`：校验签名，使用 `hmac.compare_digest` 恒定时间比较
+- [x] 校验时间戳头，超出容差窗口（默认 300 秒）判定为过期请求
+- [x] 签名格式设计：`X-HookRelay-Signature: sha256=<hex>` 与 `X-HookRelay-Timestamp`
+- [x] 失败返回 401 并记录原因
 
 ### 5.3 接收接口
 
-- [ ] `POST /ingest/{token}`：按 token 定位 endpoint，未找到返回 404
-- [ ] 校验 endpoint 是否启用，禁用返回 403
-- [ ] 校验签名与时间戳
-- [ ] 校验请求体大小，超限返回 413
-- [ ] 提取幂等键：优先 `Idempotency-Key` 头，其次 payload 内 `event_id`，都没有则用请求体哈希
-- [ ] 幂等判定：依赖唯一索引，捕获冲突异常后返回已存在事件的 ID
-- [ ] 入站限流：按 endpoint 滑动窗口计数，超限返回 429 并带 `Retry-After`
-- [ ] 写入 events 表，状态 `pending`，`next_attempt_at` 设为当前时间
-- [ ] 返回 `202 Accepted`，响应体含 `event_id` 与查询链接
+- [x] `POST /ingest/{token}`：按 token 定位 endpoint，未找到返回 404
+- [x] 校验 endpoint 是否启用，禁用返回 403
+- [x] 校验签名与时间戳
+- [x] 校验请求体大小，超限返回 413
+- [x] 提取幂等键：优先 `Idempotency-Key` 头，其次 payload 内 `event_id`，都没有则用请求体哈希
+- [x] 幂等判定：依赖唯一索引，捕获冲突异常后返回已存在事件的 ID
+- [x] 入站限流：按 endpoint 滑动窗口计数，超限返回 429 并带 `Retry-After`
+- [x] 写入 events 表，状态 `pending`，`next_attempt_at` 设为当前时间
+- [x] 返回 `202 Accepted`，响应体含 `event_id` 与查询链接
 
 ### 5.4 验证
 
-- [ ] 脚本发送带正确签名的请求，返回 202
-- [ ] 签名错误返回 401
-- [ ] 时间戳过期返回 401
-- [ ] 同一幂等键连发两次，只产生一条事件记录
-- [ ] 超过限流阈值返回 429
-- [ ] 超大请求体返回 413
+- [x] 脚本发送带正确签名的请求，返回 202
+- [x] 签名错误返回 401
+- [x] 时间戳过期返回 401
+- [x] 同一幂等键连发两次，只产生一条事件记录
+- [x] 超过限流阈值返回 429
+- [x] 超大请求体返回 413
 
 **完成标志**：重复事件只入队一次，伪造签名被拒绝，超限被拦截。
 
@@ -260,54 +260,54 @@ RETRY_JITTER_RATIO=0.2
 
 ### 6.1 退避策略
 
-- [ ] `app/services/retry.py`：退避延迟纯函数
-- [ ] 公式：`delay = min(base * factor^(attempt-1), max_delay)`
-- [ ] 加入 ±jitter 抖动，避免大量任务同时重试造成尖峰
-- [ ] 覆盖边界：首次失败、最大延迟封顶、随机性范围
-- [ ] 用参数化测试验证（纯函数，最容易测好）
+- [x] `app/services/retry.py`：退避延迟纯函数
+- [x] 公式：`delay = min(base * factor^(attempt-1), max_delay)`
+- [x] 加入 ±jitter 抖动，避免大量任务同时重试造成尖峰
+- [x] 覆盖边界：首次失败、最大延迟封顶、随机性范围
+- [x] 用参数化测试验证（纯函数，最容易测好）
 
 ### 6.2 单次投递
 
-- [ ] `app/services/delivery.py`：用 httpx 异步发起 POST
-- [ ] 设置超时（来自 endpoint 配置）
-- [ ] 出站请求带 `X-HookRelay-Signature`（用 endpoint 密钥签名）
-- [ ] 出站请求带 `X-HookRelay-Delivery-Id`（供下游去重）
-- [ ] 出站请求带 `X-HookRelay-Attempt`（第几次尝试）
-- [ ] 记录响应码、耗时、响应体（截断 1KB）
-- [ ] 区分失败类型：连接错误、超时、4xx、5xx
-- [ ] 4xx 与 5xx 的重试策略区分（如 410 直接判死）
+- [x] `app/services/delivery.py`：用 httpx 异步发起 POST
+- [x] 设置超时（来自 endpoint 配置）
+- [x] 出站请求带 `X-HookRelay-Signature`（用 endpoint 密钥签名）
+- [x] 出站请求带 `X-HookRelay-Delivery-Id`（供下游去重）
+- [x] 出站请求带 `X-HookRelay-Attempt`（第几次尝试）
+- [x] 记录响应码、耗时、响应体（截断 1KB）
+- [x] 区分失败类型：连接错误、超时、4xx、5xx
+- [x] 4xx 与 5xx 的重试策略区分（如 410 直接判死）
 
 ### 6.3 Worker 主循环（技术核心）
 
-- [ ] `app/worker.py`：循环拉取到期任务
-- [ ] 取任务 SQL 使用 `FOR UPDATE SKIP LOCKED`，批量取、限并发
-- [ ] 取出后标记 `delivering` 并记录 `locked_at`、`locked_by`
-- [ ] 并发投递：`asyncio.gather` + Semaphore 限制并发数
-- [ ] 投递成功：状态置 `succeeded`，写 delivery_attempts，记录 completed_at
-- [ ] 投递失败：`attempt_count + 1`，按退避计算 `next_attempt_at`，状态回 `pending`
-- [ ] 超过 `max_attempts`：状态置 `dead`，写 delivery_attempts
-- [ ] 空转处理：无任务时按 `WORKER_POLL_INTERVAL_SECONDS` 休眠，避免空转打满 CPU
-- [ ] 优雅关闭：捕获 SIGTERM/SIGINT，等待进行中任务结束
-- [ ] 崩溃恢复：处理卡在 `delivering` 超时的僵尸任务（锁超时回滚为 pending）
+- [x] `app/worker.py`：循环拉取到期任务
+- [x] 取任务 SQL 使用 `FOR UPDATE SKIP LOCKED`，批量取、限并发
+- [x] 取出后标记 `delivering` 并记录 `locked_at`、`locked_by`
+- [x] 并发投递：`asyncio.gather` + Semaphore 限制并发数
+- [x] 投递成功：状态置 `succeeded`，写 delivery_attempts，记录 completed_at
+- [x] 投递失败：`attempt_count + 1`，按退避计算 `next_attempt_at`，状态回 `pending`
+- [x] 超过 `max_attempts`：状态置 `dead`，写 delivery_attempts
+- [x] 空转处理：无任务时按 `WORKER_POLL_INTERVAL_SECONDS` 休眠，避免空转打满 CPU
+- [x] 优雅关闭：捕获 SIGTERM/SIGINT，等待进行中任务结束
+- [x] 崩溃恢复：处理卡在 `delivering` 超时的僵尸任务（锁超时回滚为 pending）
 
 ### 6.4 死信处理
 
-- [ ] `GET /api/events?status=dead`：查询死信事件
-- [ ] `POST /api/events/{id}/replay`：重置状态为 pending，重置尝试次数，立即投递
-- [ ] 重放操作写审计日志
+- [x] `GET /api/events?status=dead`：查询死信事件
+- [x] `POST /api/events/{id}/replay`：重置状态为 pending，重置尝试次数，立即投递
+- [x] 重放操作写审计日志
 
 ### 6.5 演示接收端
 
-- [ ] `scripts/demo_sink.py`：一个本地 HTTP 服务，收到请求后打印并在页面展示
-- [ ] 支持模拟故障（按比例返回 500 / 超时），用于演示重试
+- [x] `scripts/demo_sink.py`：一个本地 HTTP 服务，收到请求后打印并在页面展示
+- [x] 支持模拟故障（按比例返回 500 / 超时），用于演示重试
 
 ### 6.6 端到端验证
 
-- [ ] 发事件 → 自动投递到 sink 成功
-- [ ] 关闭 sink → 看到重试次数递增、间隔变长
-- [ ] 重试超过上限 → 进入死信
-- [ ] 手动重放死信 → 投递成功
-- [ ] 同时开两个 Worker → 任务不重复、不冲突（验证 SKIP LOCKED）
+- [x] 发事件 → 自动投递到 sink 成功
+- [x] 关闭 sink → 看到重试次数递增、间隔变长
+- [x] 重试超过上限 → 进入死信
+- [x] 手动重放死信 → 投递成功
+- [x] 同时开两个 Worker → 任务不重复、不冲突（验证 SKIP LOCKED）
 
 **完成标志**：完整链路可演示，能证明多 Worker 并发不重复消费。
 
@@ -317,41 +317,41 @@ RETRY_JITTER_RATIO=0.2
 
 ### 7.1 日志
 
-- [ ] `app/observability.py`：JSON 结构化日志 formatter
-- [ ] 请求日志中间件，生成并透传 `request_id`
-- [ ] 关键节点打点：接收、入队、投递成功、投递失败、进入死信、重放
+- [x] `app/observability.py`：JSON 结构化日志 formatter
+- [x] 请求日志中间件，生成并透传 `request_id`
+- [x] 关键节点打点：接收、入队、投递成功、投递失败、进入死信、重放
 
 ### 7.2 指标
 
-- [ ] `prometheus-client` 初始化
-- [ ] 计数器：接收事件数、投递成功数、投递失败数
-- [ ] 直方图：投递耗时分布
-- [ ] 仪表：待处理队列积压量、死信数量
-- [ ] `GET /metrics` 暴露指标
+- [x] `prometheus-client` 初始化
+- [x] 计数器：接收事件数、投递成功数、投递失败数
+- [x] 直方图：投递耗时分布
+- [x] 仪表：待处理队列积压量、死信数量
+- [x] `GET /metrics` 暴露指标
 
 ### 7.3 查询与统计接口
 
-- [ ] `GET /api/events`：分页，支持按 status、endpoint_id 过滤
-- [ ] `GET /api/events/{id}`：详情 + 完整投递历史
-- [ ] `GET /api/stats`：接收总数、成功数、失败数、成功率、平均投递延迟
-- [ ] `GET /health/ready`：就绪检查（探测数据库连通性）
+- [x] `GET /api/events`：分页，支持按 status、endpoint_id 过滤
+- [x] `GET /api/events/{id}`：详情 + 完整投递历史
+- [x] `GET /api/stats`：接收总数、成功数、失败数、成功率、平均投递延迟
+- [x] `GET /health/ready`：就绪检查（探测数据库连通性）
 
 ### 7.4 测试
 
-- [ ] `tests/conftest.py`：测试库、事件循环、HTTP 客户端 fixture
-- [ ] `test_security.py`：签名正确/错误/过期、密码哈希、API Key
-- [ ] `test_retry.py`：退避计算边界与抖动范围
-- [ ] `test_ingest.py`：幂等、限流、大小限制、鉴权失败
-- [ ] `test_delivery.py`：成功、失败重试、超限死信、重放
-- [ ] 用 httpx mock 或本地 sink 模拟下游
-- [ ] 覆盖率报告，核心模块覆盖率目标 ≥ 80%
+- [x] `tests/conftest.py`：测试库、事件循环、HTTP 客户端 fixture
+- [x] `test_security.py`：签名正确/错误/过期、密码哈希、API Key
+- [x] `test_retry.py`：退避计算边界与抖动范围
+- [x] `test_ingest.py`：幂等、限流、大小限制、鉴权失败
+- [x] `test_delivery.py`：成功、失败重试、超限死信、重放
+- [x] 用 httpx mock 或本地 sink 模拟下游
+- [x] 覆盖率报告，核心模块覆盖率目标 ≥ 80%
 
 ### 7.5 验证
 
-- [ ] `pytest` 全绿
-- [ ] `ruff check` 无告警
-- [ ] 覆盖率报告生成
-- [ ] `/metrics` 有真实数据
+- [x] `pytest` 全绿
+- [x] `ruff check` 无告警
+- [x] 覆盖率报告生成
+- [x] `/metrics` 有真实数据
 
 **完成标志**：测试全绿，指标端点有数据。
 
@@ -361,20 +361,20 @@ RETRY_JITTER_RATIO=0.2
 
 ### 8.1 容器化
 
-- [ ] `Dockerfile`：多阶段构建，最终镜像用非 root 用户
-- [ ] `.dockerignore`
-- [ ] `docker-compose.yml`：app + postgres 两个服务，含健康检查
-- [ ] `start.sh`：同一容器内同时启动 web 与 worker（兼容免费平台）
-- [ ] 本地 `docker compose up` 验证完整链路
+- [x] `Dockerfile`：多阶段构建，最终镜像用非 root 用户
+- [x] `.dockerignore`
+- [x] `docker-compose.yml`：app + postgres 两个服务，含健康检查
+- [x] `start.sh`：同一容器内同时启动 web 与 worker（兼容免费平台）
+- [x] 本地 `docker compose up` 验证完整链路
 
 ### 8.2 CI
 
-- [ ] `.github/workflows/ci.yml`：ruff 检查
-- [ ] CI 中启动 PostgreSQL service 容器
-- [ ] CI 中跑 pytest
-- [ ] CI 中构建 Docker 镜像验证可构建
-- [ ] 推送后确认 Actions 通过（显示绿色徽章）
-- [ ] README 添加 CI 状态徽章
+- [x] `.github/workflows/ci.yml`：ruff 检查
+- [x] CI 中启动 PostgreSQL service 容器
+- [x] CI 中跑 pytest
+- [x] CI 中构建 Docker 镜像验证可构建
+- [x] 推送后确认 Actions 通过（显示绿色徽章）
+- [x] README 添加 CI 状态徽章
 
 ### 8.3 部署
 
@@ -390,7 +390,7 @@ RETRY_JITTER_RATIO=0.2
 
 - [ ] 公网能打开接口文档页
 - [ ] 线上完整链路可演示
-- [ ] GitHub Actions 绿色
+- [x] GitHub Actions 绿色
 - [ ] 免费实例休眠后的唤醒说明写入 README
 
 **完成标志**：公网可访问的 Demo 链接 + 在线 API 文档。
@@ -401,26 +401,26 @@ RETRY_JITTER_RATIO=0.2
 
 ### 9.1 README
 
-- [ ] 项目简介与解决的问题
-- [ ] 架构图（Mermaid 绘制完整数据流）
-- [ ] 功能特性列表
-- [ ] 技术栈说明
-- [ ] 快速开始：本地运行
-- [ ] 快速开始：Docker 一键启动
-- [ ] API 使用示例（含签名生成的 curl 脚本）
-- [ ] 设计决策章节：为什么不用消息中间件、为什么是至少一次投递、为什么 web 与 worker 同容器
-- [ ] 压测数据章节
-- [ ] 已知局限与后续规划
+- [x] 项目简介与解决的问题
+- [x] 架构图（Mermaid 绘制完整数据流）
+- [x] 功能特性列表
+- [x] 技术栈说明
+- [x] 快速开始：本地运行
+- [x] 快速开始：Docker 一键启动
+- [x] API 使用示例（含签名生成的 curl 脚本）
+- [x] 设计决策章节：为什么不用消息中间件、为什么是至少一次投递、为什么 web 与 worker 同容器
+- [x] 压测数据章节
+- [x] 已知局限与后续规划
 - [ ] 在线 Demo 链接
-- [ ] 许可证
+- [x] 许可证
 
 ### 9.2 压测
 
-- [ ] `scripts/loadtest.py`：基于 asyncio + httpx 的并发压测脚本
-- [ ] 压测入站接口：记录吞吐（events/s）与 P50/P95/P99 延迟
-- [ ] 压测投递吞吐：记录单位时间投递完成数
-- [ ] 对比优化前后（如加索引前 vs 加索引后队列扫描耗时）
-- [ ] 记录测试环境配置（本机规格、并发数、数据量）
+- [x] `scripts/loadtest.py`：基于 asyncio + httpx 的并发压测脚本
+- [x] 压测入站接口：记录吞吐（events/s）与 P50/P95/P99 延迟
+- [x] 压测投递吞吐：记录单位时间投递完成数
+- [x] 对比优化前后（如加索引前 vs 加索引后队列扫描耗时）
+- [x] 记录测试环境配置（本机规格、并发数、数据量）
 
 ### 9.3 演示素材
 
@@ -430,19 +430,19 @@ RETRY_JITTER_RATIO=0.2
 
 ### 9.4 简历与面试
 
-- [ ] 简历项目描述文案（4 条，含量化数据）
-- [ ] 面试问答稿：为什么不用 Kafka/Celery
-- [ ] 面试问答稿：SKIP LOCKED 的取舍
-- [ ] 面试问答稿：至少一次投递语义与下游去重
-- [ ] 面试问答稿：部分索引与队列表膨胀优化
-- [ ] 补充问答稿：幂等为何靠唯一索引而非先查后写
-- [ ] 补充问答稿：如何做崩溃恢复与僵尸任务处理
+- [x] 简历项目描述文案（4 条，含量化数据）
+- [x] 面试问答稿：为什么不用 Kafka/Celery
+- [x] 面试问答稿：SKIP LOCKED 的取舍
+- [x] 面试问答稿：至少一次投递语义与下游去重
+- [x] 面试问答稿：部分索引与队列表膨胀优化
+- [x] 补充问答稿：幂等为何靠唯一索引而非先查后写
+- [x] 补充问答稿：如何做崩溃恢复与僵尸任务处理
 
 ### 9.5 收尾
 
-- [ ] 检查仓库无敏感信息泄露（`.env`、密钥、连接串）
+- [x] 检查仓库无敏感信息泄露（`.env`、密钥、连接串）
 - [ ] 打 tag（如 `v1.0.0`）
-- [ ] 推送 GitHub 与 Gitee，确认两边同步
+- [x] 推送 GitHub 与 Gitee，确认两边同步
 - [ ] 检查 Gitee 端 README 图片外链是否正常（GitHub 图床可能无法访问，必要时改用仓库内相对路径）
 
 **完成标志**：压测数据 + 简历文案 + 双平台同步完成。
